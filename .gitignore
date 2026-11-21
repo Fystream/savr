@@ -1,0 +1,5 @@
+node_modules/
+*.keystore
+*.jks
+signing-key-info.txt
+.DS_Store

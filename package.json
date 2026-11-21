@@ -1,0 +1,18 @@
+{
+  "name": "savr",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Savr - keep track of your money and build your savings",
+  "scripts": {
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.0.0",
+    "geist": "^1.9.2"
+  }
+}

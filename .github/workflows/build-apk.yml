@@ -1,0 +1,64 @@
+name: Build Savr APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEY: ${{ secrets.SAVR_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install packages
+        run: npm ci
+
+      - name: Copy app files into the Android project
+        run: npx cap sync android
+
+      - name: Build test APK (installs on any phone)
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Savr-test-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Build signed release APK + AAB (only when signing secrets are set)
+        if: env.HAS_KEY == 'true'
+        working-directory: android
+        env:
+          SAVR_STORE_PASSWORD: ${{ secrets.SAVR_STORE_PASSWORD }}
+          SAVR_KEY_ALIAS: ${{ secrets.SAVR_KEY_ALIAS }}
+          SAVR_KEY_PASSWORD: ${{ secrets.SAVR_KEY_PASSWORD }}
+          KEYSTORE_B64: ${{ secrets.SAVR_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/savr.keystore"
+          export SAVR_KEYSTORE="$RUNNER_TEMP/savr.keystore"
+          ./gradlew assembleRelease bundleRelease --no-daemon
+
+      - name: Upload signed release APK + AAB
+        if: env.HAS_KEY == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Savr-release
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/bundle/release/app-release.aab

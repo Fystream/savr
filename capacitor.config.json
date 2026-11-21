@@ -1,0 +1,16 @@
+{
+  "appId": "savr.app",
+  "appName": "Savr",
+  "webDir": "www",
+  "backgroundColor": "#F3F0E8",
+  "android": {
+    "backgroundColor": "#F3F0E8"
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "initialViewportFitValueHint": "cover",
+      "style": "LIGHT"
+    }
+  }
+}
