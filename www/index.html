@@ -103,8 +103,10 @@ textarea.input{min-height:120px;padding:12px 14px;font-family:var(--mono);font-s
 var KEY='stash-v1';
 var IN_CATS=['Pocket money','Gift','Earned','Other'];
 var OUT_CATS=['Food','Games','Shopping','Going out','School','Other'];
-var START='Starting balance',DEBT_OUT='Debt payment',DEBT_IN='Paid back to me';
-var NONSTAT=[START,DEBT_OUT,DEBT_IN];
+var START='Starting balance',DEBT_OUT='Debt payment',DEBT_IN='Paid back to me',LENT='Lent',BORROWED='Borrowed';
+var NONSTAT=[START,DEBT_OUT,DEBT_IN,LENT,BORROWED];
+function entryTitle(e){if(e.type==='move')return 'Moved money';var w=e.note||'someone';if(e.cat===LENT)return 'Lent to '+w;if(e.cat===BORROWED)return 'Borrowed from '+w;if(e.cat===DEBT_OUT)return 'Paid back '+w;if(e.cat===DEBT_IN)return w+' paid you back';return e.cat}
+function isDebtCat(c){return c===LENT||c===BORROWED||c===DEBT_OUT||c===DEBT_IN}
 var DAY=86400000;
 var USES=[['track','Track my money','See your cash and bank balance in one place, always up to date.'],['goal','Save for a goal','Set a target and a date. Savr shows your progress and the pace you need.'],['limit','Spend less','A weekly spending limit that adjusts itself, plus daily streaks.'],['debts','Track debts','Keep a clear record of who you owe and who owes you.'],['wish','Plan purchases','A wishlist with a 48-hour cool-off before you buy.']];
 function has(p,k){return !p||!p.uses||p.uses.indexOf(k)>=0}
@@ -114,7 +116,7 @@ var LEVELS=[['Rookie',0],['Saver',100],['Stacker',300],['Planner',600],['Pro',10
 
 var S=null;try{S=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){S=null}
 if(!S||!S.profiles)S={v:1,active:null,profiles:[],data:{},updatedAt:0};
-var tab='home', histFilter='all', sheet=null, syncNote='', debtForm={dir:'owe',who:'',amt:'',err:''}, wishForm={name:'',price:'',err:''};
+var tab='home', histFilter='all', sheet=null, syncNote='', debtForm={dir:'owe',who:'',amt:'',acct:'cash',err:''}, wishForm={name:'',price:'',err:''};
 
 /* ---------- helpers ---------- */
 function $(id){return document.getElementById(id)}
@@ -353,7 +355,7 @@ function viewHistory(){var p=P();var f={all:'All',in:'Money in',out:'Spent',move
   var cur='';h+='<div>';list.forEach(function(e){var d=dkey(e.t);if(d!==cur){cur=d;h+='<div class="mono" style="padding:16px 4px 4px">'+esc(niceDate(e.t))+'</div>'}
     var sign=e.type==='in'?'+':e.type==='out'?'−':'';var col=e.type==='in'?'good':e.type==='out'?'':'muted';
     var sub=e.type==='move'?(e.acct==='cash'?'Cash → Bank':'Bank → Cash'):(e.acct==='cash'?'Cash':'Bank');
-    h+='<button class="list-row" data-a="edit" data-id="'+e.id+'"><span class="dot" style="background:'+(e.type==='in'?'var(--sage-soft)':e.type==='out'?'#EFE9DD':'#E6E1D4')+'">'+(e.type==='move'?'⇄':sign)+'</span><span style="flex:1;min-width:0"><span style="display:block;font-weight:600">'+esc(e.type==='move'?'Moved money':e.cat)+'</span><span class="muted" style="font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(sub)+(e.note?' · '+esc(e.note):'')+'</span></span><span class="'+col+'" style="font-weight:600">'+sign+money(e.amt)+'</span></button>'});
+    h+='<button class="list-row" data-a="edit" data-id="'+e.id+'"><span class="dot" style="background:'+(e.type==='in'?'var(--sage-soft)':e.type==='out'?'#EFE9DD':'#E6E1D4')+'">'+(e.type==='move'?'⇄':sign)+'</span><span style="flex:1;min-width:0"><span style="display:block;font-weight:600">'+esc(entryTitle(e))+'</span><span class="muted" style="font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(sub)+(e.note&&!isDebtCat(e.cat)?' · '+esc(e.note):'')+'</span></span><span class="'+col+'" style="font-weight:600">'+sign+money(e.amt)+'</span></button>'});
   return h+'</div>'}
 function viewDebt(){var p=P(),dt=debtTotals(p),b=balances(p);var open=p.debts.filter(function(d){return !d.settled}),done=p.debts.filter(function(d){return d.settled});
   var h=header()+'<div class="row" style="align-items:center;gap:4px"><button class="mini-x" data-a="tab" data-tab="home" aria-label="Back to home" style="margin-left:-12px;color:var(--ink)">'+ic('back',22)+'</button><h2 style="margin:0">Debts</h2></div>'+
@@ -362,7 +364,8 @@ function viewDebt(){var p=P(),dt=debtTotals(p),b=balances(p);var open=p.debts.fi
   if(open.length){h+='<div class="card" style="padding:4px 16px">'+open.map(function(d){return '<div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)"><span class="dot" style="background:'+(d.dir==='owe'?'#F4E3D7':'var(--sage-soft)')+'">'+esc(initial(d.who))+'</span><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(d.who)+'</div><div class="muted" style="font-size:13px">'+(d.dir==='owe'?'You owe':'Owes you')+(d.orig!==d.amt?' · was '+money(d.orig):'')+'</div></div><div style="font-weight:600" class="'+(d.dir==='owe'?'bad':'good')+'">'+money(d.amt)+'</div><button class="btn small" style="padding:0 12px" data-a="payDebt" data-id="'+d.id+'">'+(d.dir==='owe'?'Pay':'Got paid')+'</button></div>'}).join('')+'</div>'}
   h+='<div class="card stack"><div class="mono">Add a debt</div><div class="seg two" role="group" aria-label="Debt direction"><button data-a="ddir" data-v="owe" aria-pressed="'+(debtForm.dir==='owe')+'">I owe</button><button data-a="ddir" data-v="owed" aria-pressed="'+(debtForm.dir==='owed')+'">They owe me</button></div>'+
   '<div class="row" style="align-items:flex-end"><div class="field" style="flex:2"><label for="dW">'+(debtForm.dir==='owe'?'To who':'Who')+'</label><input class="input" id="dW" maxlength="30" placeholder="Name" value="'+esc(debtForm.who)+'" data-c="d.who"></div><div class="field" style="flex:1"><label for="dA">₹</label><input class="input" id="dA" inputmode="decimal" value="'+esc(debtForm.amt)+'" data-c="d.amt"></div></div>'+
-  (debtForm.err?'<div class="err">'+esc(debtForm.err)+'</div>':'')+'<button class="btn dark small" style="width:100%" data-a="addDebt">Add debt</button></div>';
+  '<div class="field"><label>'+(debtForm.dir==='owe'?'The money came into':'The money came out of')+'</label><div class="row wrap">'+[['cash','Cash'],['bank','Bank'],['none',debtForm.dir==='owe'?'They paid for me':'I paid for them']].map(function(x){return '<button class="chip" style="flex:1;min-height:44px" data-a="dacct" data-v="'+x[0]+'" aria-pressed="'+(debtForm.acct===x[0])+'">'+x[1]+'</button>'}).join('')+'</div><div class="muted" style="font-size:12px;line-height:1.4">'+(debtForm.acct==='none'?'No money moves now — it\u2019s just recorded.':(debtForm.dir==='owe'?'Adds this money to your ':'Takes this money out of your ')+(debtForm.acct==='cash'?'cash.':'bank.'))+'</div></div>'+
+  (debtForm.err?'<div class="err">'+esc(debtForm.err)+'</div>':'')+'<button class="btn dark small" style="width:100%" data-a="addDebt">'+(debtForm.dir==='owe'?'Add — I borrowed':'Add — I lent')+'</button></div>';
   if(done.length)h+='<div class="mono">Settled</div><div class="card" style="padding:4px 16px">'+done.map(function(d){return '<div style="display:flex;align-items:center;gap:10px;min-height:52px;border-bottom:1px solid var(--line)"><span style="flex:1" class="muted">'+esc(d.who)+' · '+money(d.orig)+' · '+(d.dir==='owe'?'paid back':'paid you')+'</span><button class="mini-x" data-a="delDebt" data-id="'+d.id+'" aria-label="Remove">'+ic('x',18)+'</button></div>'}).join('')+'</div>';
   return h}
 
@@ -430,12 +433,12 @@ function saveEntry(){var p=P(),s=sheet;var amt=parseAmt(s.amt);if(!(amt>0)){s.er
   var b=balances(p,s.editId);var from=s.acct;
   if((s.type==='out'||s.type==='move')&&amt>b[from]+1e-9){s.err='You only have '+money(b[from])+' in '+(from==='cash'?'cash':'your bank card')+'. Check the amount.';return rerenderSheet()}
   var old=s.editId?p.entries.filter(function(x){return x.id===s.editId})[0]:null;
-  if(old&&old.debtId){var dd=p.debts.filter(function(x){return x.id===old.debtId})[0];if(dd&&amt-old.amt>dd.amt+1e-9){s.err='That’s more than what’s left on this debt ('+money(dd.amt)+').';return rerenderSheet()}}
+  if(old&&old.debtId&&old.cat!==LENT&&old.cat!==BORROWED){var dd=p.debts.filter(function(x){return x.id===old.debtId})[0];if(dd&&amt-old.amt>dd.amt+1e-9){s.err='That’s more than what’s left on this debt ('+money(dd.amt)+').';return rerenderSheet()}}
   if(!old&&b.cash<0&&from==='cash'){}
   var parts=s.date.split('-');var t=s.date===dkey(Date.now())?Date.now():new Date(+parts[0],+parts[1]-1,+parts[2],12).getTime();
   if(old&&old.cat===START)t=old.t;
   var entry={id:s.editId||newId(),t:t,type:s.type,amt:amt,acct:from,cat:s.type==='move'?'Move':s.cat,note:(s.note||'').trim()};if(s.type==='move')entry.to=from==='cash'?'bank':'cash';
-  if(old&&old.debtId){entry.debtId=old.debtId;adjustDebt(p,old.debtId,old.amt-amt)}
+  if(old&&old.debtId){entry.debtId=old.debtId;if(old.cat===LENT||old.cat===BORROWED){var od=p.debts.filter(function(x){return x.id===old.debtId})[0];if(od){od.orig=Math.round((od.orig+amt-old.amt)*100)/100;adjustDebt(p,old.debtId,amt-old.amt)}}else adjustDebt(p,old.debtId,old.amt-amt)}
   if(s.editId){p.entries=p.entries.map(function(x){return x.id===s.editId?entry:x})}else p.entries.push(entry);
   if(s.wishId&&s.type==='out'){p.wish=p.wish.filter(function(w){return w.id!==s.wishId});p.wishBought=true}
   if(p.limitMode==='auto'&&(entry.type==='in'||(old&&old.type==='in')))ensureAuto(p,true);sheet=null;checkAch(false);save();render();if(!document.querySelector('.toast.win'))toast(s.editId?'Saved':(s.type==='in'?'Added '+money(amt):s.type==='out'?'Logged '+money(amt):'Moved '+money(amt)))}
@@ -456,7 +459,7 @@ document.addEventListener('click',function(ev){var el=ev.target.closest('[data-a
   if(a==='scat'){sheet.cat=el.getAttribute('data-v');return rerenderSheet()}
   if(a==='saveEntry')return saveEntry();
   if(a==='delEntry'){if(!sheet.confirmDel){sheet.confirmDel=true;return rerenderSheet()}var id=sheet.editId;var b=balances(p,id);if(b.cash<-1e-9||b.bank<-1e-9){sheet.err='Can’t delete: later spending depends on this money. Edit or delete those first.';sheet.confirmDel=false;return rerenderSheet()}
-    var e=p.entries.filter(function(x){return x.id===id})[0];if(e&&e.debtId)adjustDebt(p,e.debtId,e.amt);p.entries=p.entries.filter(function(x){return x.id!==id});sheet=null;checkAch(true);save();render();return toast('Deleted')}
+    var e=p.entries.filter(function(x){return x.id===id})[0];if(e&&e.debtId&&(e.cat===LENT||e.cat===BORROWED)&&p.debts.some(function(d){return d.id===e.debtId})){sheet.err='This is linked to a debt. Remove the debt on the Debts page instead.';sheet.confirmDel=false;return rerenderSheet()}if(e&&e.debtId)adjustDebt(p,e.debtId,e.amt);p.entries=p.entries.filter(function(x){return x.id!==id});sheet=null;checkAch(true);save();render();return toast('Deleted')}
   if(a==='mode'){p.limitMode=el.getAttribute('data-v');if(p.limitMode==='auto')ensureAuto(p,true);save();return render()}
   if(a==='recalc'){ensureAuto(p,true);checkAch(true);save();render();return toast('Weekly limit: '+money(p.limit))}
   if(a==='lim'){var cur=L(p)||0;setLimit(Math.max(0,cur+Number(el.getAttribute('data-d'))));return render()}
@@ -465,7 +468,12 @@ document.addEventListener('click',function(ev){var el=ev.target.closest('[data-a
   if(a==='buyWish'){var w=p.wish.filter(function(x){return x.id===el.getAttribute('data-id')})[0];if(!w)return;return openAdd('out',null,{amt:String(w.price),cat:'Shopping',note:w.name,wishId:w.id})}
   if(a==='ddir'){debtForm.dir=el.getAttribute('data-v');return render()}
   if(a==='addDebt'){var who=debtForm.who.trim(),am=parseAmt(debtForm.amt);if(!who){debtForm.err='Who is it?';return rerenderApp()}if(!(am>0)){debtForm.err='Amount must be above ₹0.';return rerenderApp()}
-    p.debts.push({id:newId(),who:who,dir:debtForm.dir,amt:am,orig:am,created:Date.now(),settled:false});debtForm={dir:debtForm.dir,who:'',amt:'',err:''};save();render();return toast('Debt added')}
+    var ac=debtForm.acct||'cash';if(debtForm.dir==='owed'&&ac!=='none'){var bl=balances(p);if(am>bl[ac]+1e-9){debtForm.err='You only have '+money(bl[ac])+' in '+(ac==='cash'?'cash':'your bank')+'.';return rerenderApp()}}
+    var did=newId();p.debts.push({id:did,who:who,dir:debtForm.dir,amt:am,orig:am,created:Date.now(),settled:false});
+    if(ac!=='none')p.entries.push({id:newId(),t:Date.now(),type:debtForm.dir==='owe'?'in':'out',amt:am,acct:ac,cat:debtForm.dir==='owe'?BORROWED:LENT,note:who,debtId:did});
+    var msg=debtForm.dir==='owe'?(ac==='none'?'Recorded: you owe '+who+' '+money(am):'+'+money(am)+' borrowed from '+who):(ac==='none'?'Recorded: '+who+' owes you '+money(am):'−'+money(am)+' lent to '+who);
+    debtForm={dir:debtForm.dir,who:'',amt:'',acct:ac,err:''};save();render();return toast(msg)}
+  if(a==='dacct'){debtForm.acct=el.getAttribute('data-v');debtForm.err='';return render()}
   if(a==='payDebt'){var d=p.debts.filter(function(x){return x.id===el.getAttribute('data-id')})[0];sheet={kind:'debtpay',debtId:d.id,amt:String(d.amt),acct:'cash'};return render()}
   if(a==='savePay'){var dd=p.debts.filter(function(x){return x.id===sheet.debtId})[0];var amt=parseAmt(sheet.amt);if(!(amt>0)){sheet.err='Type an amount above ₹0.';return rerenderSheet()}if(amt>dd.amt+1e-9){sheet.err='That’s more than '+money(dd.amt)+'.';return rerenderSheet()}
     var bb=balances(p);if(dd.dir==='owe'&&amt>bb[sheet.acct]+1e-9){sheet.err='You only have '+money(bb[sheet.acct])+' in '+(sheet.acct==='cash'?'cash':'your bank card')+'.';return rerenderSheet()}
